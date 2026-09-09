@@ -1,0 +1,116 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  VIGIL AI — Endpoint Agent configuration
+#
+#  Copy this file to  agent_config.yaml  next to where you run the agent, then
+#  edit the two settings that actually matter for a cross-machine deployment:
+#  `server_url` and `enroll_token`.
+#
+#  Every key can also be overridden by an environment variable named
+#  VIGIL_AGENT_<KEY_IN_CAPS>  (lists are comma-separated), which is handy for
+#  service wrappers and scheduled tasks. Command-line flags win over both.
+#
+#  This agent collects METADATA ONLY — paths, sizes, drive letters, session
+#  names. It never opens a file or reads a byte of content.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── identity & server ────────────────────────────────────────────────────────
+
+# Stable name for this endpoint, as it appears on the SOC dashboard.
+# Default: AGENT-<HOSTNAME>. Must be unique across the fleet — two machines
+# sharing an agent_id will collide on enrollment.
+# agent_id: AGENT-WORKSTATION-07
+
+# The detection server. Use the SOC PC's LAN IP, not 127.0.0.1, when the agent
+# runs on a different machine. Make sure port 8000 is open on the server's
+# firewall (Windows: New-NetFirewallRule -DisplayName "VIGIL" -Direction Inbound
+# -LocalPort 8000 -Protocol TCP -Action Allow).
+server_url: http://192.168.1.50:8000
+
+# One-time enrollment token, minted on the server with:
+#     python -m server.keygen --new-token
+# Consumed on first successful enrollment; after that it can be blanked.
+enroll_token: ""
+
+# Where this endpoint's ML-DSA-44 signing keypair lives (python -m agent.keygen).
+# The secret key is this machine's identity — treat it like an SSH private key.
+keys_dir: keys/agent
+
+# Pin the server's ML-KEM-512 public-key fingerprint, printed by
+# `python -m server.keygen --show` on the server. Strongly recommended: with it
+# set, a machine-in-the-middle that substitutes its own key is rejected instead
+# of trusted. Left empty, the first enrollment is trust-on-first-use and the
+# agent logs a warning with the fingerprint it saw so you can paste it here.
+server_kem_fingerprint: ""
+
+# ── what to collect ──────────────────────────────────────────────────────────
+
+collect_files: true       # file create / modify / delete / move (metadata only)
+collect_usb: true         # removable-volume connect / disconnect
+collect_logon: true       # interactive sign-in / sign-out
+
+# Directories watched recursively. Defaults to this user's Documents, Downloads
+# and Desktop if they exist. Watching an entire drive root works but is noisy —
+# prefer the folders where the data you care about actually lives.
+watch_dirs:
+  - C:\Users\Public\Documents
+  # - D:\Shared
+  # - C:\Users\alice\Documents
+
+# Automatically watch removable volumes for file activity while they are plugged
+# in. This is what turns "a USB stick was connected" into "2.3 GB was copied to
+# a USB stick" — the single strongest exfiltration signal this system has.
+watch_removable: true
+
+# Substrings matched case-insensitively against the full path. The defaults strip
+# the noise every filesystem produces (AppData churn, .git, node_modules,
+# __pycache__, editor temp/lock files). Setting this key REPLACES the defaults,
+# so copy the list before adding to it.
+# exclude_patterns:
+#   - "\\appdata\\"
+#   - "\\.git\\"
+#   - "\\node_modules\\"
+#   - "\\__pycache__\\"
+#   - ".tmp"
+#   - ".crdownload"
+#   - "~$"
+
+# Report activity under a specific username instead of the OS account. Leave
+# empty in production; useful for demos and for shared-kiosk machines.
+user: ""
+
+# ── timing ───────────────────────────────────────────────────────────────────
+
+flush_interval_s: 5.0     # how often a batch is sealed and sent
+usb_poll_s: 2.0           # drive-letter scan interval
+logon_poll_s: 5.0         # session-table scan interval
+
+# Collapse repeated writes to the same path into one event, and re-read the size
+# once the burst goes quiet. Without this, one "save" in Word becomes dozens of
+# events and a copy in progress reports a partial size. Raise it on slow disks.
+modify_debounce_s: 1.0
+
+max_batch: 500            # events per sealed batch
+buffer_size: 20000        # in-memory cap; beyond it the OLDEST events are dropped
+                          # (and counted) so the agent can never grow without
+                          # bound while the server is unreachable
+
+# ── networking ───────────────────────────────────────────────────────────────
+
+request_timeout_s: 15.0
+retry_backoff_s: 2.0      # first retry delay after a failed send
+max_backoff_s: 60.0       # ceiling for the exponential backoff
+verify_tls: true          # only relevant when server_url is https://
+
+# ── response directives ──────────────────────────────────────────────────────
+#
+# When the server decides BLOCK it sends back a containment directive. The agent
+# is deliberately NON-DESTRUCTIVE: it writes an audit record and shows the user a
+# security notice. It does not disable networking, kill sessions, or delete
+# anything. Real enforcement is out of scope and documented as simulated in the
+# README.
+
+apply_directives: true
+directive_log: logs/agent_directives.log
+notify_user: true         # print a security notice on the endpoint's console
+
+log_level: info           # debug | info | warning | error

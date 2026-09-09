@@ -1,0 +1,9 @@
+# VIGIL AI — development and verification
+#
+#   pip install -r requirements.txt -r requirements-dev.txt
+#   pytest
+#
+# The server requirements are a prerequisite: the test suite drives the real
+# FastAPI app and the real endpoint transport, so it needs both sides installed.
+
+pytest>=8.0

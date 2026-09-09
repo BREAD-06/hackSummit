@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VIGIL AI — System Architecture</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --border: #e2e8f0;
+      --border-blue: #93c5fd;
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --primary: #1d4ed8;
+      --primary-gradient: linear-gradient(135deg, #1e3a8a 0%, #2563eb 50%, #0284c7 100%);
+      --cyan: #0284c7;
+      --emerald-bg: #ecfdf5;
+      --emerald-border: #a7f3d0;
+      --emerald-text: #065f46;
+      --purple-bg: #f5f3ff;
+      --purple-border: #ddd6fe;
+      --purple-text: #5b21b6;
+      --amber-bg: #fffbeb;
+      --amber-border: #fde68a;
+      --amber-text: #92400e;
+      --rose-bg: #fff1f2;
+      --rose-border: #fecdd3;
+      --rose-text: #9f1239;
+      --blue-bg: #eff6ff;
+      --blue-border: #bfdbfe;
+      --blue-text: #1e40af;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.4;
+      padding: 30px 20px 60px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .canvas {
+      max-width: 1440px;
+      width: 100%;
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      border-radius: 20px;
+      box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.15);
+      padding: 40px;
+      position: relative;
+    }
+
+    /* Top Bar Header */
+    .header-grid {
+      display: grid;
+      grid-template-columns: 240px 1fr 280px;
+      align-items: center;
+      margin-bottom: 30px;
+      gap: 20px;
+    }
+
+    .tagline-left {
+      font-size: 0.95rem;
+      font-style: italic;
+      color: #334155;
+      font-weight: 500;
+    }
+
+    .brand-center {
+      text-align: center;
+    }
+
+    .logo-title {
+      font-size: 3.5rem;
+      font-weight: 900;
+      letter-spacing: -0.04em;
+      background: var(--primary-gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+
+    .system-subtitle {
+      font-size: 1.35rem;
+      font-weight: 800;
+      color: #0f172a;
+      letter-spacing: -0.01em;
+      margin-bottom: 4px;
+    }
+
+    .motto {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #475569;
+      letter-spacing: 0.02em;
+    }
+
+    .header-right {
+      text-align: right;
+    }
+
+    .privacy-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      padding: 8px 14px;
+      border-radius: 10px;
+      margin-bottom: 8px;
+      text-align: left;
+    }
+
+    .privacy-badge svg {
+      width: 20px;
+      height: 20px;
+      fill: #166534;
+      flex-shrink: 0;
+    }
+
+    .privacy-badge div {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: #14532d;
+      line-height: 1.2;
+    }
+
+    .privacy-badge span {
+      font-size: 0.72rem;
+      font-weight: 500;
+      color: #166534;
+      display: block;
+    }
+
+    .quote-right {
+      font-size: 0.85rem;
+      font-style: italic;
+      color: #475569;
+      font-weight: 500;
+    }
+
+    /* 3-Column Architecture */
+    .arch-cols {
+      display: grid;
+      grid-template-columns: 1fr 64px 1.15fr 64px 1.45fr;
+      align-items: stretch;
+      gap: 0;
+      margin-bottom: 40px;
+    }
+
+    /* Main Container Columns */
+    .col-container {
+      background: #f8fafc;
+      border: 1.5px solid #bfdbfe;
+      border-radius: 16px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .col-header {
+      text-align: center;
+      margin-bottom: 18px;
+    }
+
+    .col-header-icon {
+      font-size: 2rem;
+      margin-bottom: 4px;
+    }
+
+    .col-title {
+      font-size: 1.3rem;
+      font-weight: 800;
+      color: #0f172a;
+    }
+
+    .col-subtitle {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #475569;
+      margin-top: 2px;
+    }
+
+    .col-meta {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #64748b;
+      margin-top: 4px;
+    }
+
+    /* Component Cards Inside Col 1 */
+    .agent-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .card-item {
+      border-radius: 12px;
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-width: 1px;
+      border-style: solid;
+    }
+
+    .card-icon {
+      font-size: 1.6rem;
+      flex-shrink: 0;
+    }
+
+    .card-content h4 {
+      font-size: 0.9rem;
+      font-weight: 700;
+      margin-bottom: 2px;
+    }
+
+    .card-content p {
+      font-size: 0.75rem;
+      line-height: 1.3;
+    }
+
+    .card-green { background: var(--emerald-bg); border-color: var(--emerald-border); color: var(--emerald-text); }
+    .card-green h4 { color: #064e3b; }
+    .card-purple { background: var(--purple-bg); border-color: var(--purple-border); color: var(--purple-text); }
+    .card-purple h4 { color: #4c1d95; }
+    .card-amber { background: var(--amber-bg); border-color: var(--amber-border); color: var(--amber-text); }
+    .card-amber h4 { color: #78350f; }
+    .card-rose { background: var(--rose-bg); border-color: var(--rose-border); color: var(--rose-text); }
+    .card-rose h4 { color: #881337; }
+    .card-blue { background: var(--blue-bg); border-color: var(--blue-border); color: var(--blue-text); }
+    .card-blue h4 { color: #1e3a8a; }
+
+    .down-arrow-wrap {
+      text-align: center;
+      margin: -4px 0;
+      color: #64748b;
+      font-size: 1rem;
+    }
+
+    /* Connectors Between Columns */
+    .col-connector {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 0 4px;
+      text-align: center;
+    }
+
+    .connector-box {
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      padding: 10px 4px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+      width: 100%;
+    }
+
+    .connector-title {
+      font-size: 0.7rem;
+      font-weight: 800;
+      color: #1e3a8a;
+      line-height: 1.1;
+      margin-bottom: 6px;
+    }
+
+    .connector-icon {
+      font-size: 1.3rem;
+      margin-bottom: 6px;
+    }
+
+    .connector-bullets {
+      font-size: 0.65rem;
+      color: #475569;
+      font-weight: 600;
+      list-style: none;
+      line-height: 1.3;
+    }
+
+    .connector-arrow {
+      font-size: 1.4rem;
+      color: #2563eb;
+      font-weight: 900;
+      margin: 4px 0;
+    }
+
+    /* Column 2: Server Pipeline */
+    .server-pipeline {
+      background: #ffffff;
+      border: 1.5px solid #bfdbfe;
+      border-radius: 14px;
+      padding: 14px;
+      margin-bottom: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .stage-card {
+      border-radius: 10px;
+      padding: 10px 12px;
+      border: 1px solid #e2e8f0;
+      background: #f8fafc;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    .stage-num {
+      font-size: 1.4rem;
+      line-height: 1;
+    }
+
+    .stage-info h5 {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 2px;
+    }
+
+    .stage-info p {
+      font-size: 0.72rem;
+      color: #475569;
+      line-height: 1.25;
+    }
+
+    .stage-card.blue { background: #eff6ff; border-color: #bfdbfe; }
+    .stage-card.green { background: #f0fdf4; border-color: #bbf7d0; }
+    .stage-card.amber { background: #fffbeb; border-color: #fde68a; }
+    .stage-card.rose { background: #fff1f2; border-color: #fecdd3; }
+
+    .storage-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .storage-card {
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      padding: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .storage-icon {
+      font-size: 1.5rem;
+      color: #6366f1;
+    }
+
+    .storage-text h6 {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: #0f172a;
+    }
+
+    .storage-text p {
+      font-size: 0.68rem;
+      color: #64748b;
+    }
+
+    /* Column 3: SOC Dashboard Simulation */
+    .dashboard-preview {
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      border-radius: 12px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding-bottom: 8px;
+    }
+
+    .dash-topbar {
+      background: #0f172a;
+      color: #ffffff;
+      padding: 8px 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.75rem;
+    }
+
+    .dash-logo {
+      font-weight: 800;
+      color: #38bdf8;
+    }
+
+    .dash-nav {
+      display: flex;
+      gap: 10px;
+      color: #94a3b8;
+      font-size: 0.68rem;
+    }
+
+    .dash-nav span.active {
+      color: #ffffff;
+      font-weight: 600;
+    }
+
+    /* Mini KPI Row */
+    .mini-kpi-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      padding: 0 10px;
+    }
+
+    .mini-kpi {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 6px;
+      text-align: center;
+    }
+
+    .mini-kpi-val {
+      font-size: 1rem;
+      font-weight: 800;
+      line-height: 1;
+      margin-bottom: 2px;
+    }
+
+    .mini-kpi-lbl {
+      font-size: 0.62rem;
+      color: #64748b;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    /* Split Queue & Detail */
+    .dash-split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      padding: 0 10px;
+    }
+
+    .mini-card {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 8px;
+    }
+
+    .mini-card-title {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 6px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .threat-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 4px 6px;
+      margin-bottom: 3px;
+      border-radius: 4px;
+      font-size: 0.66rem;
+      background: #ffffff;
+      border: 1px solid #f1f5f9;
+    }
+
+    .badge-crit { background: #fee2e2; color: #991b1b; font-weight: 700; padding: 1px 4px; border-radius: 3px; font-size: 0.6rem; }
+    .badge-high { background: #ffedd5; color: #9a3412; font-weight: 700; padding: 1px 4px; border-radius: 3px; font-size: 0.6rem; }
+    .badge-med { background: #fef3c7; color: #854d0e; font-weight: 700; padding: 1px 4px; border-radius: 3px; font-size: 0.6rem; }
+    .badge-low { background: #dcfce7; color: #166534; font-weight: 700; padding: 1px 4px; border-radius: 3px; font-size: 0.6rem; }
+
+    .evidence-list {
+      font-size: 0.65rem;
+      color: #334155;
+      line-height: 1.35;
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .btn-block {
+      flex: 1;
+      background: #dc2626;
+      color: #ffffff;
+      border: none;
+      padding: 4px;
+      font-size: 0.68rem;
+      font-weight: 700;
+      border-radius: 4px;
+      text-align: center;
+    }
+
+    .btn-dismiss {
+      flex: 1;
+      background: #2563eb;
+      color: #ffffff;
+      border: none;
+      padding: 4px;
+      font-size: 0.68rem;
+      font-weight: 700;
+      border-radius: 4px;
+      text-align: center;
+    }
+
+    /* Bottom Dash Split */
+    .mini-chart-box {
+      font-size: 0.65rem;
+      color: #64748b;
+      padding: 6px;
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      height: 48px;
+      display: flex;
+      align-items: flex-end;
+      gap: 3px;
+      justify-content: center;
+    }
+
+    .bar {
+      width: 6px;
+      background: #3b82f6;
+      border-radius: 2px 2px 0 0;
+    }
+
+    .bar.alert { background: #ef4444; }
+
+    /* Bottom 5 Pillars Footer */
+    .pillars-footer {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 16px;
+      border-top: 1.5px solid #e2e8f0;
+      padding-top: 24px;
+      margin-top: 10px;
+    }
+
+    .pillar-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .pillar-icon {
+      font-size: 1.8rem;
+      flex-shrink: 0;
+      color: #1e3a8a;
+    }
+
+    .pillar-info h5 {
+      font-size: 0.82rem;
+      font-weight: 800;
+      color: #0f172a;
+      margin-bottom: 2px;
+    }
+
+    .pillar-info p {
+      font-size: 0.7rem;
+      color: #64748b;
+      line-height: 1.25;
+    }
+
+    .final-banner {
+      text-align: center;
+      margin-top: 24px;
+      font-size: 0.78rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      color: #64748b;
+      text-transform: uppercase;
+    }
+  </style>
+</head>
+<body>
+
+<div class="canvas">
+
+  <!-- TOP HEADER -->
+  <div class="header-grid">
+    <div class="tagline-left">
+      From Endpoints<br>to a Safer Tomorrow.
+    </div>
+
+    <div class="brand-center">
+      <div class="logo-title">VIGIL AI</div>
+      <div class="system-subtitle">Real-Time Insider Threat Detection System</div>
+      <div class="motto">Detect Behaviour &nbsp;•&nbsp; Protect Telemetry &nbsp;•&nbsp; Learn from Decisions</div>
+    </div>
+
+    <div class="header-right">
+      <div class="privacy-badge">
+        <svg viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+        <div>
+          Metadata-Only Monitoring
+          <span>No file contents. No privacy breach.</span>
+        </div>
+      </div>
+      <div class="quote-right">
+        "Insider threats don't break in.<br>They already belong."
+      </div>
+    </div>
+  </div>
+
+  <!-- 3-COLUMN ARCHITECTURE FLOW -->
+  <div class="arch-cols">
+
+    <!-- COLUMN 1: ENDPOINT AGENT -->
+    <div class="col-container">
+      <div class="col-header">
+        <div class="col-header-icon">💻</div>
+        <div class="col-title">Endpoint Agent</div>
+        <div class="col-subtitle">(Employee Workstation)</div>
+        <div class="col-meta">Lightweight &nbsp;|&nbsp; Unprivileged &nbsp;|&nbsp; Privacy-Preserving</div>
+      </div>
+
+      <div class="agent-stack">
+        <div class="card-item card-green">
+          <div class="card-icon">📄</div>
+          <div class="card-content">
+            <h4>File Activity Collector</h4>
+            <p>Monitors file create/modify/delete/move (ReadDirectoryChangesW)</p>
+          </div>
+        </div>
+
+        <div class="down-arrow-wrap">↓</div>
+
+        <div class="card-item card-purple">
+          <div class="card-icon">🔌</div>
+          <div class="card-content">
+            <h4>USB Collector</h4>
+            <p>Detects removable media connect/disconnect (GetDriveTypeW)</p>
+          </div>
+        </div>
+
+        <div class="down-arrow-wrap">↓</div>
+
+        <div class="card-item card-amber">
+          <div class="card-icon">👤</div>
+          <div class="card-content">
+            <h4>Logon/Session Collector</h4>
+            <p>Tracks user logons and logoffs (psutil)</p>
+          </div>
+        </div>
+
+        <div class="down-arrow-wrap">↓</div>
+
+        <div class="card-item card-rose">
+          <div class="card-icon">🗄️</div>
+          <div class="card-content">
+            <h4>Bounded Event Buffer</h4>
+            <p>In-memory ring buffer (batch every 5 seconds)</p>
+          </div>
+        </div>
+
+        <div class="down-arrow-wrap">↓</div>
+
+        <div class="card-item card-blue">
+          <div class="card-icon">🛡️</div>
+          <div class="card-content">
+            <h4>PQC Sealing &amp; Encryption</h4>
+            <p>AES-256-GCM + ML-KEM-512 + ML-DSA-44<br>Signs and encrypts event batches</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CONNECTOR 1 -> 2 -->
+    <div class="col-connector">
+      <div class="connector-box">
+        <div class="connector-title">HTTPS<br>PQC Encrypted<br>Channel</div>
+        <div class="connector-icon">🔒</div>
+        <ul class="connector-bullets">
+          <li>• Authenticated</li>
+          <li>• Encrypted</li>
+          <li>• Tamper-proof</li>
+        </ul>
+      </div>
+      <div class="connector-arrow">➔</div>
+    </div>
+
+    <!-- COLUMN 2: CENTRAL SOC SERVER -->
+    <div class="col-container">
+      <div class="col-header">
+        <div class="col-header-icon">🖧</div>
+        <div class="col-title">Central SOC Server</div>
+        <div class="col-subtitle">(Detection &amp; Analytics Engine)</div>
+        <div class="col-meta">FastAPI &nbsp;|&nbsp; ML + RL &nbsp;|&nbsp; SQLite &nbsp;|&nbsp; WebSockets</div>
+      </div>
+
+      <div class="server-pipeline">
+        <div class="stage-card blue">
+          <div class="stage-num">⚙️</div>
+          <div class="stage-info">
+            <h5>1. Trigger Stage</h5>
+            <p>Receive &amp; decrypt batches. Normalize events and create rolling (user, host, hour) feature windows.</p>
+          </div>
+        </div>
+
+        <div class="down-arrow-wrap">↓</div>
+
+        <div class="stage-card green">
+          <div class="stage-num">📊</div>
+          <div class="stage-info">
+            <h5>2. Detection Stage (ML)</h5>
+            <p><strong>Isolation Forest</strong>: Scores each window for anomalous behaviour against baseline model.</p>
+          </div>
+        </div>
+
+        <div class="down-arrow-wrap">↓</div>
+
+        <div class="stage-card amber">
+          <div class="stage-num">🧠</div>
+          <div class="stage-info">
+            <h5>3. Verification Stage (RL)</h5>
+            <p><strong>Q-Learning Policy</strong>: Decides response: DISMISS / ALERT / BLOCK. Learns from analyst feedback.</p>
+          </div>
+        </div>
+
+        <div class="down-arrow-wrap">↓</div>
+
+        <div class="stage-card rose">
+          <div class="stage-num">🛡️</div>
+          <div class="stage-info">
+            <h5>4. Response Stage</h5>
+            <p>Assign severity, generate directives, persist to SQLite, push real-time updates via WebSocket.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="storage-row">
+        <div class="storage-card">
+          <div class="storage-icon">💾</div>
+          <div class="storage-text">
+            <h6>SQLite Database</h6>
+            <p>Events, threats, Q-table, agents</p>
+          </div>
+        </div>
+        <div class="storage-card">
+          <div class="storage-icon">📦</div>
+          <div class="storage-text">
+            <h6>ML Models</h6>
+            <p>Isolation Forest (loaded from disk)</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CONNECTOR 2 -> 3 -->
+    <div class="col-connector">
+      <div class="connector-box">
+        <div class="connector-title">WebSocket<br>+ REST API</div>
+        <div class="connector-icon">⚡</div>
+        <ul class="connector-bullets">
+          <li>• Live threat feed</li>
+          <li>• Agent status</li>
+          <li>• Analyst actions</li>
+        </ul>
+      </div>
+      <div class="connector-arrow">➔</div>
+    </div>
+
+    <!-- COLUMN 3: SOC DASHBOARD -->
+    <div class="col-container">
+      <div class="col-header">
+        <div class="col-header-icon">🖥️</div>
+        <div class="col-title">SOC Dashboard</div>
+        <div class="col-subtitle">(Analyst's Browser)</div>
+        <div class="col-meta">React 18 + Vite &nbsp;|&nbsp; Real-Time &nbsp;|&nbsp; Explainable &nbsp;|&nbsp; Interactive</div>
+      </div>
+
+      <div class="dashboard-preview">
+        <!-- Dashboard Mockup Header -->
+        <div class="dash-topbar">
+          <div class="dash-logo">VIGIL AI</div>
+          <div class="dash-nav">
+            <span class="active">Dashboard</span>
+            <span>Threats</span>
+            <span>Agents</span>
+            <span>Analytics</span>
+            <span>Q-Table</span>
+          </div>
+          <div>👤</div>
+        </div>
+
+        <!-- KPI Row -->
+        <div class="mini-kpi-row">
+          <div class="mini-kpi">
+            <div class="mini-kpi-val" style="color: #ef4444;">12 🛡️</div>
+            <div class="mini-kpi-lbl">Open Threats</div>
+          </div>
+          <div class="mini-kpi">
+            <div class="mini-kpi-val" style="color: #f59e0b;">3 ⚠️</div>
+            <div class="mini-kpi-lbl">Critical</div>
+          </div>
+          <div class="mini-kpi">
+            <div class="mini-kpi-val" style="color: #0284c7;">5 💻</div>
+            <div class="mini-kpi-lbl">Endpoints Online</div>
+          </div>
+          <div class="mini-kpi">
+            <div class="mini-kpi-val" style="color: #10b981;">1,248 📊</div>
+            <div class="mini-kpi-lbl">Events Ingested</div>
+          </div>
+        </div>
+
+        <!-- Queue & Details Split -->
+        <div class="dash-split">
+          <div class="mini-card">
+            <div class="mini-card-title">
+              <span>Live Threat Queue</span>
+            </div>
+            <div class="threat-item">
+              <span class="badge-crit">CRITICAL</span>
+              <span>USB exfiltration</span>
+              <span style="color:#94a3b8;">10:23 PM</span>
+            </div>
+            <div class="threat-item">
+              <span class="badge-high">HIGH</span>
+              <span>Rapid file write</span>
+              <span style="color:#94a3b8;">10:21 PM</span>
+            </div>
+            <div class="threat-item">
+              <span class="badge-med">MEDIUM</span>
+              <span>Large archive</span>
+              <span style="color:#94a3b8;">09:14 PM</span>
+            </div>
+            <div class="threat-item">
+              <span class="badge-low">LOW</span>
+              <span>Unusual logon</span>
+              <span style="color:#94a3b8;">08:02 PM</span>
+            </div>
+          </div>
+
+          <div class="mini-card">
+            <div class="mini-card-title">
+              <span>Threat Details (X-Ray)</span>
+            </div>
+            <div class="evidence-list">
+              <div><strong>Host:</strong> WKS-EXECUTIVE-PC</div>
+              <div><strong>User:</strong> john.doe</div>
+              <div><strong>State:</strong> ah1 | usb1 | vol3 | anom1</div>
+              <div><strong>Files Touched:</strong> 50</div>
+              <div><strong>Bytes Written:</strong> 2.3 GB</div>
+              <div><strong>USB Activity:</strong> Yes &nbsp;|&nbsp; <strong>After Hours:</strong> Yes</div>
+              <div><strong>Anomaly Score:</strong> 0.92</div>
+              <div><strong>Rules:</strong> [after_hours_usb, high_volume]</div>
+            </div>
+            <div class="btn-row">
+              <button class="btn-block">Block</button>
+              <button class="btn-dismiss">Dismiss</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bottom Split: Visuals & PQC -->
+        <div class="dash-split">
+          <div class="mini-card">
+            <div class="mini-card-title">
+              <span>Anomaly Score Distribution</span>
+            </div>
+            <div class="mini-chart-box">
+              <div class="bar" style="height: 14px;"></div>
+              <div class="bar" style="height: 22px;"></div>
+              <div class="bar" style="height: 35px;"></div>
+              <div class="bar" style="height: 28px;"></div>
+              <div class="bar" style="height: 12px;"></div>
+              <div class="bar alert" style="height: 42px;"></div>
+              <div class="bar alert" style="height: 38px;"></div>
+            </div>
+          </div>
+
+          <div class="mini-card">
+            <div class="mini-card-title">
+              <span>Agent &amp; PQC Status</span>
+            </div>
+            <div class="evidence-list">
+              <div>🟢 <strong>WKS-EXECUTIVE-PC</strong> <span style="color:#16a34a; font-weight:700;">Online</span></div>
+              <div style="font-family:'JetBrains Mono', monospace; font-size:0.6rem; color:#475569;">ML-KEM-512 + ML-DSA-44</div>
+              <div style="color:#64748b; font-size:0.6rem;">Last seen: 2s ago</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <!-- BOTTOM 5 PILLARS FOOTER -->
+  <div class="pillars-footer">
+    <div class="pillar-item">
+      <div class="pillar-icon">🛡️</div>
+      <div class="pillar-info">
+        <h5>Post-Quantum Security</h5>
+        <p>ML-KEM-512 + ML-DSA-44<br>AES-256-GCM</p>
+      </div>
+    </div>
+
+    <div class="pillar-item">
+      <div class="pillar-icon">🔒</div>
+      <div class="pillar-info">
+        <h5>Privacy Preserving</h5>
+        <p>Metadata only<br>No file contents</p>
+      </div>
+    </div>
+
+    <div class="pillar-item">
+      <div class="pillar-icon">⚡</div>
+      <div class="pillar-info">
+        <h5>Real-Time Detection</h5>
+        <p>Live WebSocket updates<br>No polling</p>
+      </div>
+    </div>
+
+    <div class="pillar-item">
+      <div class="pillar-icon">🧠</div>
+      <div class="pillar-info">
+        <h5>Adaptive Response</h5>
+        <p>Q-Learning from<br>analyst feedback</p>
+      </div>
+    </div>
+
+    <div class="pillar-item">
+      <div class="pillar-icon">👥</div>
+      <div class="pillar-info">
+        <h5>Built for the SOC</h5>
+        <p>Explainable AI<br>Interactive dashboard</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="final-banner">
+    DETECT TODAY. A SAFER TOMORROW.
+  </div>
+
+</div>
+
+</body>
+</html>

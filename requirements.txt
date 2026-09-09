@@ -1,0 +1,37 @@
+# VIGIL AI — Detection Server (the SOC machine)
+#
+# Install on the machine that runs `python -m server.main`. The endpoint agent does
+# NOT need any of this: it has its own, much smaller, requirements-agent.txt, and
+# deliberately so — pulling scikit-learn onto every monitored workstation to run a
+# telemetry collector would be indefensible.
+#
+# Versions are floors, set to what the suite is actually tested against (Python
+# 3.13.7 on Windows 11). Older releases may well work; they were not verified.
+# `pip install -r requirements.txt` on a clean venv is the supported path.
+#
+# Every dependency here is pure-Python or ships wheels for CPython 3.11-3.13 on
+# Windows/Linux/macOS. Nothing needs a C toolchain, and — importantly for the PQC
+# stack — nothing needs liboqs or any system library.
+
+# ── API and serving ───────────────────────────────────────────────────────────
+fastapi>=0.115
+uvicorn>=0.30
+websockets>=13.0          # uvicorn's WebSocket implementation; the live threat feed
+pydantic>=2.9             # event/batch schema, shared with the agent
+
+# ── detection (Isolation Forest) ──────────────────────────────────────────────
+scikit-learn>=1.5
+numpy>=2.0
+pandas>=2.2               # training-time window aggregation only, never per event
+joblib>=1.4               # model persistence
+
+# ── post-quantum cryptography ─────────────────────────────────────────────────
+# Pure-Python NIST reference implementations, so there is no liboqs DLL to ship
+# and no build step on the endpoint. See vigil/pqc/ for the exact protocol.
+kyber-py>=1.2             # ML-KEM-512   (FIPS 203) — session key agreement
+dilithium-py>=1.4         # ML-DSA-44    (FIPS 204) — batch signatures
+cryptography>=43.0        # AES-256-GCM + HKDF-SHA256
+
+# ── config and the tools that drive the server ────────────────────────────────
+PyYAML>=6.0               # server_config.yaml
+httpx>=0.27               # tools/replay.py, and the agent transport it reuses

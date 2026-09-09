@@ -1,0 +1,62 @@
+# VIGIL AI — Detection Server configuration
+#
+# Copy to `server_config.yaml` and edit. Every key below is optional: omit one and
+# the built-in default applies. Any value can also be overridden by an environment
+# variable named VIGIL_<KEY_IN_UPPERCASE> (lists are comma-separated), which is
+# handy for one-off runs:  VIGIL_PORT=9000 python -m server.main
+
+# ── network ───────────────────────────────────────────────────────────────────
+# 0.0.0.0 binds every interface so endpoint agents elsewhere on the LAN can reach
+# this machine. Allow TCP 8000 through the Windows firewall on the server PC.
+host: "0.0.0.0"
+port: 8000
+
+# Origins allowed to call the API from a browser. Narrow this to the dashboard's
+# own origin in anything resembling production.
+cors_origins:
+  - "*"
+
+# ── storage, model, keys ──────────────────────────────────────────────────────
+db_path: "data/vigil.db"
+model_path: "models/vigil_iforest.pkl"
+keys_dir: "keys/server"
+
+# ── post-quantum secure channel ───────────────────────────────────────────────
+# Every endpoint must present a one-time enrollment token (mint one with
+# `python -m server.keygen --new-token`). Setting this to false lets any host on
+# the network enroll itself — acceptable for a local demo, nothing more.
+require_enroll_token: true
+
+# Tolerance for clock difference between endpoint and server during the handshake.
+max_clock_skew_s: 300
+
+# Whether an already-enrolled agent_id may register a *different* signing key.
+# Left false, a key rotation is a deliberate admin act rather than something an
+# impostor can trigger by re-enrolling a known agent_id.
+allow_reenroll: false
+
+# ── reinforcement learning (verification policy) ──────────────────────────────
+rl_alpha: 0.3               # learning rate for each analyst verdict
+rl_gamma: 0.0               # 0 = each behaviour window is an independent decision
+rl_epsilon: 0.0             # exploration rate; 0 = always act on the best-known action
+rl_safe_exploration: true   # exploration may never escalate to BLOCK
+
+# ── enrichment ────────────────────────────────────────────────────────────────
+# Absolute paths that are sensitive in *your* environment. These add to the
+# built-in keyword hints (confidential, payroll, legal, ...), they don't replace
+# them. A file under one of these paths raises `sensitive_path_access`.
+sensitive_dirs: []
+  # - "C:\\Finance\\confidential"
+  # - "D:\\HR\\records"
+
+# Extra case-insensitive substrings that mark a path as sensitive. Uncomment to
+# replace the built-in list entirely.
+# sensitive_hints:
+#   - "confidential"
+#   - "payroll"
+#   - "merger"
+
+# ── behaviour ─────────────────────────────────────────────────────────────────
+persist_events: true    # keep raw event metadata as an audit trail (never contents)
+emit_directives: true   # return containment directives to the agent on a BLOCK
+log_level: "info"       # debug | info | warning | error

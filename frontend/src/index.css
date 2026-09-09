@@ -1,0 +1,794 @@
+/* ═══════════════════════════════════════════════════════════════════════════════
+   VIGIL AI — SOC dashboard styles
+
+   Colors are not chosen here; they are *recorded* here. Every value comes from a
+   palette that was run through a colorblind-separation validator in both modes
+   (categorical blue/red pair: worst-case CVD deltaE 19.2 dark / 21.6 light, all
+   checks pass). Dark is the default because a SOC screen usually is, and the dark
+   values are their own selected steps for the dark surface — not a lightness flip
+   of the light ones, which is what makes washed-out dark themes.
+
+   Severity never rides on color alone: every severity is a chip with its name
+   spelled out, because the warning/serious pair (amber/orange) sits below the
+   normal-vision separation floor. The color is a fast second read, not the datum.
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── dark (default) ── */
+  color-scheme: dark;
+
+  --surface-1: #1a1a19; /* card surface */
+  --surface-2: #202020; /* raised: table header, chips */
+  --plane: #0d0d0d; /* page behind the cards */
+
+  --ink: #ffffff;
+  --ink-2: #c3c2b7;
+  --muted: #898781;
+
+  --grid: #2c2c2a;
+  --baseline: #383835;
+  --border: rgba(255, 255, 255, 0.1);
+
+  --series-1: #3987e5; /* single-series marks, positive Q */
+  --series-neg: #e66767; /* negative Q */
+
+  /* Status palette — fixed, never themed, never reused as a series color. */
+  --sev-low: #0ca30c;
+  --sev-medium: #fab219;
+  --sev-high: #ec835a;
+  --sev-critical: #d03b3b;
+  --good: #0ca30c;
+
+  --radius: 10px;
+  --radius-sm: 6px;
+  --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "Cascadia Mono", Consolas, monospace;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --surface-1: #fcfcfb;
+  --surface-2: #f2f1ee;
+  --plane: #f9f9f7;
+
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --muted: #898781;
+
+  --grid: #e1e0d9;
+  --baseline: #c3c2b7;
+  --border: rgba(11, 11, 11, 0.1);
+
+  --series-1: #2a78d6;
+  --series-neg: #e34948;
+
+  --good: #006300;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--plane);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+/* ── layout ─────────────────────────────────────────────────────────────────── */
+.app {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 0 24px 48px;
+}
+
+.grid {
+  display: grid;
+  gap: 16px;
+}
+
+.grid.cols-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.grid.cols-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* Wide-plus-narrow: the queue and its detail panel, the feed and its endpoints. */
+.grid.main {
+  grid-template-columns: minmax(0, 1.85fr) minmax(0, 1fr);
+}
+
+.stack {
+  display: grid;
+  gap: 16px;
+}
+
+.span-2 {
+  grid-column: span 2;
+}
+
+@media (max-width: 1100px) {
+  .grid.cols-2,
+  .grid.cols-3,
+  .grid.main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .span-2 {
+    grid-column: span 1;
+  }
+}
+
+/* The threat queue needs ~1000px before a side rail is affordable; below that the
+   rail goes underneath rather than pushing the verdict buttons out of view. */
+@media (max-width: 1400px) {
+  .grid.main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ── header ─────────────────────────────────────────────────────────────────── */
+.header {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding: 20px 0 18px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 20px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-right: auto;
+}
+
+.brand h1 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.brand p {
+  margin: 1px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 11px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-1);
+  font-size: 12px;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.badge .mono {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--muted);
+}
+
+.dot.live {
+  background: var(--good);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--good) 22%, transparent);
+}
+
+.dot.offline {
+  background: var(--sev-critical);
+}
+
+.dot.connecting {
+  background: var(--sev-medium);
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-1);
+  color: var(--ink-2);
+}
+
+.icon-btn:hover {
+  color: var(--ink);
+  border-color: var(--muted);
+}
+
+/* ── cards ──────────────────────────────────────────────────────────────────── */
+.card {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px 18px;
+  min-width: 0;
+}
+
+.card > header {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.card h2 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+
+.card .hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.card > header .spacer {
+  margin-left: auto;
+}
+
+/* ── stat tiles ─────────────────────────────────────────────────────────────── */
+.kpis {
+  display: grid;
+  grid-template-columns: 1.4fr repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+@media (max-width: 1100px) {
+  .kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.tile {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 15px 18px 17px;
+}
+
+.tile .label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.tile .value {
+  /* Proportional figures: tabular-nums makes a standalone 121 look loose. */
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  margin-top: 4px;
+}
+
+.tile.hero .value {
+  font-size: 52px;
+}
+
+.tile .sub {
+  font-size: 12px;
+  color: var(--ink-2);
+  margin-top: 2px;
+}
+
+.tile .chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+/* ── severity & action chips ────────────────────────────────────────────────── */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 9px 2px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.chip .swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex: none;
+}
+
+.sev-LOW .swatch {
+  background: var(--sev-low);
+}
+.sev-MEDIUM .swatch {
+  background: var(--sev-medium);
+}
+.sev-HIGH .swatch {
+  background: var(--sev-high);
+}
+.sev-CRITICAL .swatch {
+  background: var(--sev-critical);
+}
+
+.chip.plain {
+  font-weight: 500;
+  letter-spacing: 0;
+  padding-left: 9px;
+  color: var(--ink-2);
+}
+
+/* ── tables ─────────────────────────────────────────────────────────────────── */
+.table-wrap {
+  overflow-x: auto;
+  margin: 0 -18px -18px;
+  padding: 0 18px 18px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  background: var(--surface-1);
+}
+
+td {
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--grid);
+  vertical-align: middle;
+}
+
+tbody tr:last-child td {
+  border-bottom: none;
+}
+
+tbody tr.clickable:hover {
+  background: var(--surface-2);
+  cursor: pointer;
+}
+
+tbody tr.selected {
+  background: var(--surface-2);
+}
+
+td.num,
+th.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.mono {
+  font-family: var(--mono);
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.truncate {
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.truncate-sm {
+  max-width: 170px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.evidence-cell {
+  max-width: 230px;
+}
+
+.verdict-col {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.decided {
+  font-size: 12px;
+}
+
+.dim {
+  color: var(--muted);
+}
+
+/* ── verdict buttons ────────────────────────────────────────────────────────── */
+.verdicts {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.verdict {
+  padding: 4px 11px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.verdict:hover:not(:disabled) {
+  color: var(--ink);
+  border-color: var(--muted);
+}
+
+.verdict.block:hover:not(:disabled) {
+  border-color: var(--sev-critical);
+  color: var(--sev-critical);
+}
+
+.verdict.dismiss:hover:not(:disabled) {
+  border-color: var(--good);
+  color: var(--good);
+}
+
+.verdict:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ── charts ─────────────────────────────────────────────────────────────────── */
+.chart {
+  position: relative;
+}
+
+.chart svg {
+  display: block;
+  width: 100%;
+  overflow: visible;
+}
+
+.axis-label {
+  font-size: 10px;
+  fill: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.bar {
+  fill: var(--series-1);
+}
+
+.bar.empty {
+  fill: var(--grid);
+}
+
+.gridline {
+  stroke: var(--grid);
+  stroke-width: 1;
+}
+
+.baseline {
+  stroke: var(--baseline);
+  stroke-width: 1;
+}
+
+/* A reference line, not a series and not a status: neutral and dashed, with a
+   direct label. Borrowing --sev-critical here would make the model's decision
+   boundary read as a critical alert. */
+.threshold {
+  stroke: var(--muted);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.tooltip {
+  position: absolute;
+  z-index: 20;
+  pointer-events: none;
+  transform: translate(-50%, -100%);
+  padding: 6px 9px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--ink);
+  font-size: 12px;
+  white-space: nowrap;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend i {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+/* ── Q-table diverging bars ─────────────────────────────────────────────────── */
+.qcell {
+  width: 96px;
+}
+
+.qbar {
+  position: relative;
+  height: 16px;
+  background: linear-gradient(var(--grid), var(--grid)) center / 1px 100% no-repeat;
+}
+
+.qbar i {
+  position: absolute;
+  top: 3px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+.qbar i.pos {
+  left: 50%;
+  background: var(--series-1);
+}
+
+.qbar i.neg {
+  right: 50%;
+  background: var(--series-neg);
+}
+
+.qval {
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+/* ── detail panel ───────────────────────────────────────────────────────────── */
+.detail dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 5px 14px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.detail dt {
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.detail dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.detail h3 {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 18px 0 8px;
+}
+
+.detail .qmini td {
+  padding: 4px 10px 4px 0;
+  border-bottom: none;
+  font-size: 13px;
+}
+
+.detail .qmini tr.best td {
+  color: var(--ink);
+}
+
+.detail .qmini tr:not(.best) td {
+  color: var(--ink-2);
+}
+
+/* ── PQC spec columns ───────────────────────────────────────────────────────── */
+.specs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 24px;
+}
+
+@media (max-width: 900px) {
+  .specs {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.spec h3 {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 2px;
+}
+
+.spec-sub {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--ink);
+}
+
+/* ── banners ────────────────────────────────────────────────────────────────── */
+.banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface-1);
+  margin-bottom: 16px;
+  font-size: 13px;
+}
+
+.banner.error {
+  border-color: color-mix(in srgb, var(--sev-critical) 55%, var(--border));
+}
+
+.banner.learned {
+  border-color: color-mix(in srgb, var(--series-1) 55%, var(--border));
+}
+
+.banner strong {
+  font-weight: 600;
+}
+
+.banner button {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+.empty-state {
+  padding: 26px 4px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.tab {
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background: none;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.tab[aria-selected="true"] {
+  background: var(--surface-2);
+  border-color: var(--border);
+  color: var(--ink);
+}
+
+/* ── filters: one row, above the data they filter ───────────────────────────── */
+.filters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.select-wrap select {
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--ink-2);
+}
+
+.select-wrap select:hover {
+  color: var(--ink);
+  border-color: var(--muted);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.evidence {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.sub-line {
+  font-size: 12px;
+  margin-top: 3px;
+}
+
+.stale {
+  opacity: 0.55;
+  transition: opacity 0.15s;
+}
+
+.footnote {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 22px 0 0;
+  text-align: center;
+}

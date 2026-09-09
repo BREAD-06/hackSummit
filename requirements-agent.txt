@@ -1,0 +1,28 @@
+# VIGIL AI — Endpoint Agent (each monitored workstation)
+#
+# Install on the machine being watched, then run `python -m agent.main`. This list
+# is short on purpose: an agent that ships a machine-learning stack to every
+# desktop in order to forward file and USB metadata is an agent nobody will deploy.
+# All detection happens on the server, so there is no scikit-learn, no pandas, no
+# numpy, and no FastAPI here.
+#
+#   pip install -r requirements-agent.txt      # ~15 MB of wheels, no C toolchain
+#
+# Versions are floors, set to what the suite is tested against (Python 3.13.7 on
+# Windows 11). Python 3.11+ is required.
+
+# ── telemetry collection ──────────────────────────────────────────────────────
+watchdog>=4.0             # filesystem events (metadata only — never file contents)
+psutil>=6.0               # logon/logoff via session diffing
+# USB/removable detection uses ctypes + kernel32.GetDriveTypeW from the standard
+# library, so it needs no package and no elevation.
+
+# ── the secure channel (identical to the server's) ─────────────────────────────
+kyber-py>=1.2             # ML-KEM-512   (FIPS 203)
+dilithium-py>=1.4         # ML-DSA-44    (FIPS 204)
+cryptography>=43.0        # AES-256-GCM + HKDF-SHA256
+
+# ── transport and config ──────────────────────────────────────────────────────
+httpx>=0.27               # sealed batch delivery
+pydantic>=2.9             # event/batch schema, shared with the server
+PyYAML>=6.0               # agent_config.yaml
