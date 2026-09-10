@@ -118,3 +118,11 @@ class Storage(ABC):
 
     @abstractmethod
     def list_feedback(self, limit: int = 200) -> list[dict]: ...
+
+    # ── policy engine ──
+    @abstractmethod
+    def get_policy(self, name: str = "default") -> dict | None: ...
+
+    @abstractmethod
+    def set_policy(self, policy_data: dict, name: str = "default") -> None: ...
+

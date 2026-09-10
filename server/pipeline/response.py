@@ -164,15 +164,22 @@ class ResponseStage:
         return threat, created
 
     # ── endpoint directive (simulated containment) ──
-    def directive(self, threat: Threat) -> dict[str, Any] | None:
+    def directive(self, threat: Threat, policy: Any = None) -> dict[str, Any] | None:
         if not self.emit_directives or threat.action != BLOCK:
             return None
+        if policy and hasattr(policy, "should_emit_directive"):
+            if not policy.should_emit_directive(threat.action):
+                return None
+        mode = "simulated"
+        if policy and hasattr(policy, "current"):
+            mode = getattr(policy.current.response_actions, "containment_mode", "simulated")
         return {
             "directive_id": f"d-{threat.id}",
             "threat_id": threat.id,
             "type": "CONTAIN",
-            "mode": "simulated",
+            "mode": mode,
             "severity": threat.severity,
+
             "user": threat.user,
             "host": threat.host,
             "issued_at": datetime.now(timezone.utc).isoformat(),

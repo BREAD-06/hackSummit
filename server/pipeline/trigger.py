@@ -124,11 +124,19 @@ class TriggerStage:
         self._extras: dict[tuple, WindowExtras] = {}
 
     # ── enrichment ──
-    def enrich(self, ev: Event) -> Event:
+    def enrich(self, ev: Event, policy: Any = None) -> Event:
         """Attach explainable context to an event, in place."""
         if ev.log_type == schema.LOG_FILE:
-            sensitive = is_sensitive_path(ev.path, self.hints, self.dirs)
-            removable = is_removable_path(ev.path, ev.detail)
+            hints = policy.monitoring.sensitive_keywords if policy else self.hints
+            dirs = policy.monitoring.sensitive_dirs if policy else self.dirs
+            sensitive = is_sensitive_path(ev.path, hints, dirs)
+            
+            # Check if USB is disabled by policy
+            if policy and getattr(policy.threat_rules, "usb_policy", None) == "disabled":
+                removable = False
+            else:
+                removable = is_removable_path(ev.path, ev.detail)
+
             ev.detail = {
                 **(ev.detail or {}),
                 "ext": path_ext(ev.path),
@@ -138,7 +146,7 @@ class TriggerStage:
         return ev
 
     # ── main entry point ──
-    def process(self, batch: EventBatch, agent_id: str | None = None) -> TriggerResult:
+    def process(self, batch: EventBatch, agent_id: str | None = None, policy: Any = None) -> TriggerResult:
         """Enrich, persist and window a batch. Returns the windows it touched."""
         agent_id = agent_id or batch.agent_id
         events: list[Event] = []
@@ -148,7 +156,8 @@ class TriggerStage:
             ev.agent_id = agent_id
             if not ev.host:
                 ev.host = batch.host
-            events.append(self.enrich(ev))
+            events.append(self.enrich(ev, policy=policy))
+
 
         persisted = 0
         if self.persist and events:

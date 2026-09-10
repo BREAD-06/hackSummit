@@ -108,9 +108,15 @@ class SQLiteStorage(Storage):
                     action       TEXT,
                     created_at   TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS policies (
+                    name       TEXT PRIMARY KEY,
+                    data       TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
                 """
             )
             self._conn.commit()
+
 
     def close(self) -> None:
         with self._lock:
@@ -427,6 +433,31 @@ class SQLiteStorage(Storage):
                 "SELECT * FROM feedback ORDER BY id DESC LIMIT ?", (limit,)
             ).fetchall()
             return [dict(r) for r in rows]
+
+    # ── policy engine ──
+    def get_policy(self, name: str = "default") -> dict | None:
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT data FROM policies WHERE name = ?", (name,)
+            ).fetchone()
+            if row and row["data"]:
+                try:
+                    return json.loads(row["data"])
+                except Exception:
+                    return None
+            return None
+
+    def set_policy(self, policy_data: dict, name: str = "default") -> None:
+        with self._lock:
+            data_str = json.dumps(policy_data)
+            self._conn.execute(
+                """INSERT INTO policies (name, data, updated_at)
+                   VALUES (?, ?, ?)
+                   ON CONFLICT(name) DO UPDATE SET data=excluded.data, updated_at=excluded.updated_at""",
+                (name, data_str, _now()),
+            )
+            self._conn.commit()
+
 
 
 # ── row -> dict helpers (decode JSON columns / hide raw key blob) ────────────

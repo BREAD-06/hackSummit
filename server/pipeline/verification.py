@@ -38,25 +38,46 @@ class VerificationStage:
     def __init__(self, learner: QLearner):
         self.learner = learner
 
-    def verify(self, detection: Detection, extras: dict[str, float] | None = None) -> Verdict:
+    def verify(self, detection: Detection, extras: dict[str, float] | None = None, policy: Any = None) -> Verdict:
         # Rules see the full picture; the RL state stays in the small 32-cell space.
         context = {
             **detection.features,
             **(extras or {}),
             "is_anomaly": detection.is_anomaly,
         }
+
+        # Apply policy-guided signal masking
+        if policy:
+            if not policy.is_usb_threat():
+                context["usb_connect"] = 0
+                context["usb_disconnect"] = 0
+                context["removable_write_count"] = 0
+            if not policy.is_after_hours_threat():
+                context["is_after_hours"] = 0
+
         state = discretize(context)
         decision = self.learner.decide(state)
+
+        # Policy-guided action enforcement
+        action = decision["action"]
+        has_usb = float(detection.features.get("usb_connect", 0) or 0) > 0 or float(detection.features.get("usb_disconnect", 0) or 0) > 0
+        if policy:
+            action = policy.enforce_action(action, has_usb=has_usb)
+
+        raw_rules = fired_rules(context)
+        rules = policy.filter_fired_rules(raw_rules) if policy else raw_rules
+
         return Verdict(
             state=state,
-            action=decision["action"],
+            action=action,
             greedy_action=decision["greedy_action"],
             explored=decision["explored"],
             q_values=decision["q_values"],
             confidence=decision["confidence"],
-            rules_fired=fired_rules(context),
+            rules_fired=rules,
             rule_context={k: float(v) for k, v in (extras or {}).items()},
         )
+
 
     def apply_feedback(self, state: str, action: str, admin_action: str) -> dict[str, Any]:
         return self.learner.apply_feedback(state, action, admin_action)

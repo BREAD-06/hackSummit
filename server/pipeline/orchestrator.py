@@ -29,6 +29,7 @@ from server.pipeline.detection import DetectionStage
 from server.pipeline.response import ResponseStage, Threat, threat_event
 from server.pipeline.trigger import TriggerStage
 from server.pipeline.verification import VerificationStage
+from server.policy.engine import PolicyEngine
 from server.rl.qlearning import ADMIN_BLOCK, ADMIN_DISMISS, QLearner
 from vigil.schema import EventBatch
 
@@ -46,6 +47,7 @@ class IngestResult:
     anomalies: int
     threats: list[Threat] = field(default_factory=list)
     directives: list[dict] = field(default_factory=list)
+    policy: dict[str, Any] = field(default_factory=dict)
     # Ready-made WebSocket envelopes ("threat" for new, "threat_update" for a
     # re-evaluated window), so the API layer never has to re-derive newness.
     broadcasts: list[dict] = field(default_factory=list)
@@ -66,12 +68,13 @@ class IngestResult:
 
 
 class Pipeline:
-    """Owns the four stages and the shared live state."""
+    """Owns the four stages, the enterprise policy engine, and the shared live state."""
 
     def __init__(self, storage: Storage, model: DetectionModel, config: ServerConfig):
         self.storage = storage
         self.config = config
         self._lock = threading.RLock()
+        self.policy_engine = PolicyEngine(storage)
 
         self.learner = QLearner(
             storage,
@@ -100,8 +103,8 @@ class Pipeline:
         """Run one batch through every stage. Thread-safe; CPU-bound."""
         agent_id = agent_id or batch.agent_id
         with self._lock:
-            triggered = self.trigger.process(batch, agent_id=agent_id)
-            detections = self.detection.score_many(triggered.windows)
+            triggered = self.trigger.process(batch, agent_id=agent_id, policy=self.policy_engine.current)
+            detections = self.detection.score_many(triggered.windows, policy=self.policy_engine)
 
             result = IngestResult(
                 agent_id=agent_id,
@@ -109,11 +112,12 @@ class Pipeline:
                 events_persisted=triggered.persisted,
                 windows_evaluated=len(detections),
                 anomalies=sum(1 for d in detections if d.is_anomaly),
+                policy=self.policy_engine.agent_policy_dict(),
             )
 
             for detection in detections:
                 extras = triggered.extras.get(detection.window_key, {})
-                verdict = self.verification.verify(detection, extras)
+                verdict = self.verification.verify(detection, extras, policy=self.policy_engine)
                 if not self.response.should_record(detection, verdict):
                     continue
                 threat, created = self.response.record(
@@ -128,12 +132,13 @@ class Pipeline:
                         threat.user, threat.host, threat.risk,
                         ",".join(threat.rules_fired) or "-",
                     )
-                directive = self.response.directive(threat)
+                directive = self.response.directive(threat, policy=self.policy_engine)
                 if directive:
                     result.directives.append(directive)
 
             self.storage.touch_agent(agent_id)
             return result
+
 
     # ── analyst feedback (the RL reward loop) ─────────────────────────────────
     def apply_feedback(self, threat_id: int, admin_action: str) -> dict[str, Any]:
@@ -176,10 +181,24 @@ class Pipeline:
                 "policy_changed": learned["policy_before"] != learned["policy_after"],
             }
 
+    # ── policy engine ─────────────────────────────────────────────────────────
+    def get_policy(self) -> dict[str, Any]:
+        return self.policy_engine.get_policy()
+
+    def update_policy(self, updates: dict[str, Any]) -> dict[str, Any]:
+        with self._lock:
+            return self.policy_engine.update_policy(updates)
+
+    def reset_policy(self) -> dict[str, Any]:
+        with self._lock:
+            return self.policy_engine.reset_policy()
+
     # ── introspection ─────────────────────────────────────────────────────────
     def info(self) -> dict[str, Any]:
         return {
             "model": self.detection.info(),
             "rl": self.learner.stats(),
             "live_windows": len(self.trigger.features.all_windows()),
+            "policy": self.policy_engine.get_policy(),
         }
+

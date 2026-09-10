@@ -269,7 +269,41 @@ def enroll_token(request: Request):
     }
 
 
+# ── policy engine (enterprise administration) ───────────────────────────────
+@router.get("/policy")
+def get_policy(request: Request):
+    """Retrieve the active enterprise security and threat policy."""
+    st = _state(request)
+    return st.pipeline.get_policy()
+
+
+@router.put("/policy")
+async def update_policy(request: Request):
+    """Update enterprise threat, monitoring, and response policy rules."""
+    st = _state(request)
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "invalid JSON payload")
+    if not isinstance(body, dict):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "payload must be a JSON object")
+
+    new_policy = st.pipeline.update_policy(body)
+    await st.ws.broadcast({"type": "policy_update", "data": new_policy})
+    return new_policy
+
+
+@router.post("/policy/reset")
+async def reset_policy_config(request: Request):
+    """Reset the enterprise policy to system default configuration."""
+    st = _state(request)
+    default_policy = st.pipeline.reset_policy()
+    await st.ws.broadcast({"type": "policy_update", "data": default_policy})
+    return default_policy
+
+
 # ── live push ─────────────────────────────────────────────────────────────────
+
 @router.websocket("/ws")
 async def dashboard_socket(websocket: WebSocket):
     """Live threat feed. Push-only: inbound frames are read solely to notice hangups."""

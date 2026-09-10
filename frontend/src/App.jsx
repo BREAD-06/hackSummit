@@ -1,41 +1,34 @@
 import React from "react";
 
 import { ApiError, api, connectLiveFeed } from "./api.js";
-import AgentPanel from "./components/AgentPanel.jsx";
-import EventFeed from "./components/EventFeed.jsx";
-import KpiRow from "./components/KpiRow.jsx";
-import PqcPanel from "./components/PqcPanel.jsx";
-import QTablePanel from "./components/QTablePanel.jsx";
-import ScoreChart from "./components/ScoreChart.jsx";
-import ThreatDetail from "./components/ThreatDetail.jsx";
-import ThreatTable from "./components/ThreatTable.jsx";
-import TimelineChart from "./components/TimelineChart.jsx";
-import { SEVERITIES } from "./components/ui.jsx";
-
-const STATUS_TEXT = {
-  live: "Live",
-  connecting: "Connecting…",
-  reconnecting: "Reconnecting…",
-  offline: "Server unreachable",
-};
+import Sidebar from "./components/Sidebar.jsx";
+import Header from "./components/Header.jsx";
+import DashboardView from "./components/views/DashboardView.jsx";
+import ThreatsView from "./components/views/ThreatsView.jsx";
+import EndpointsView from "./components/views/EndpointsView.jsx";
+import AnalyticsView from "./components/views/AnalyticsView.jsx";
+import AgentsView from "./components/views/AgentsView.jsx";
+import SecurityView from "./components/views/SecurityView.jsx";
+import ActivityView from "./components/views/ActivityView.jsx";
+import SettingsView from "./components/views/SettingsView.jsx";
+import PolicyCenterView from "./components/views/PolicyCenterView.jsx";
+import { Modal } from "./components/ui.jsx";
+import { Copy, Check } from "lucide-react";
 
 /**
- * The SOC dashboard.
- *
- * Threats arrive by WebSocket and are patched into local state rather than
- * refetched, so a burst of activity does not turn into a burst of queries. The
- * slow 20s poll exists for the things a push cannot tell you: that an endpoint
- * went *quiet*. Filtering is entirely client-side for the same reason — a filter
- * that refetched would drop live pushes that don't match it yet.
+ * VIGIL AI — INSIDER RISK DETECTION & SOC CONSOLE
+ * Fully redesigned Apple/Linear-grade monochrome cybersecurity command center.
  */
 export default function App() {
-  const [theme, setTheme] = React.useState(
-    () => localStorage.getItem("vigil-theme") || "dark",
-  );
+  const [currentRoute, setCurrentRoute] = React.useState("dashboard");
+  const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
+  const [refreshing, setRefreshing] = React.useState(false);
+
   const [conn, setConn] = React.useState("connecting");
   const [error, setError] = React.useState(null);
   const [learned, setLearned] = React.useState(null);
 
+  // Core Data
   const [summary, setSummary] = React.useState(null);
   const [threats, setThreats] = React.useState([]);
   const [timeline, setTimeline] = React.useState([]);
@@ -48,17 +41,15 @@ export default function App() {
   const [health, setHealth] = React.useState(null);
   const [model, setModel] = React.useState(null);
 
+  // Selection & Detail
   const [selectedId, setSelectedId] = React.useState(null);
   const [detail, setDetail] = React.useState(null);
   const [detailLoading, setDetailLoading] = React.useState(false);
   const [pending, setPending] = React.useState(null);
-  const [statusFilter, setStatusFilter] = React.useState("all");
-  const [severityFilter, setSeverityFilter] = React.useState("all");
 
-  React.useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    localStorage.setItem("vigil-theme", theme);
-  }, [theme]);
+  // Global Quick Enrollment Token Modal
+  const [quickToken, setQuickToken] = React.useState(null);
+  const [copiedToken, setCopiedToken] = React.useState(false);
 
   const fail = React.useCallback((err) => {
     setError(err instanceof ApiError ? err.message : String(err?.message || err));
@@ -66,7 +57,11 @@ export default function App() {
 
   // ── loaders ────────────────────────────────────────────────────────────────
   const loadThreatData = React.useCallback(async () => {
-    const [t, tl, sc] = await Promise.all([api.threats({ limit: 200 }), api.timeline(), api.scores()]);
+    const [t, tl, sc] = await Promise.all([
+      api.threats({ limit: 200 }),
+      api.timeline(),
+      api.scores(),
+    ]);
     setThreats(t);
     setTimeline(tl);
     setScores(sc);
@@ -92,6 +87,7 @@ export default function App() {
   }, []);
 
   const loadAll = React.useCallback(async () => {
+    setRefreshing(true);
     try {
       await Promise.all([
         loadThreatData(),
@@ -103,6 +99,8 @@ export default function App() {
       setError(null);
     } catch (err) {
       fail(err);
+    } finally {
+      setRefreshing(false);
     }
   }, [loadThreatData, loadRl, loadLive, fail]);
 
@@ -110,12 +108,10 @@ export default function App() {
     loadAll();
   }, [loadAll]);
 
-  // Endpoints going quiet is invisible to a push-only feed, so poll for it.
+  // Periodic poll for agent silence
   React.useEffect(() => {
     const id = setInterval(() => {
-      loadLive().catch(() => {
-        /* the connection dot already reports unreachability */
-      });
+      loadLive().catch(() => {});
     }, 20000);
     return () => clearInterval(id);
   }, [loadLive]);
@@ -139,8 +135,6 @@ export default function App() {
             const rest = prev.filter((t) => t.id !== data.id);
             return [data, ...rest].sort((a, b) => b.id - a.id).slice(0, 200);
           });
-          // The window's hour bucket and its score both changed; both are server-side
-          // aggregates, so they have to come from the server.
           api.timeline().then(setTimeline).catch(() => {});
           api.scores().then(setScores).catch(() => {});
           api.recentEvents(80).then(setEvents).catch(() => {});
@@ -167,9 +161,7 @@ export default function App() {
     return close;
   }, [loadRl]);
 
-  // ── selection ──────────────────────────────────────────────────────────────
-  // Open on the newest threat rather than an empty rail: the detail panel is where
-  // a verdict gets justified, so it should already be showing something.
+  // Auto-select first threat if none selected
   const autoSelected = React.useRef(false);
   React.useEffect(() => {
     if (autoSelected.current || selectedId != null || threats.length === 0) return;
@@ -177,6 +169,7 @@ export default function App() {
     setSelectedId(threats[0].id);
   }, [threats, selectedId]);
 
+  // Load threat detail on selection
   React.useEffect(() => {
     if (selectedId == null) {
       setDetail(null);
@@ -192,16 +185,13 @@ export default function App() {
     return () => {
       alive = false;
     };
-    // Re-fetch when a verdict lands, so "policy now" reflects the update.
   }, [selectedId, learned, fail]);
 
-  // ── the feedback loop ──────────────────────────────────────────────────────
+  // ── verdict and policy mutations ───────────────────────────────────────────
   const submitVerdict = async (threatId, action) => {
     setPending(threatId);
     try {
       const result = await api.feedback(threatId, action);
-      // The WebSocket will deliver this too, but a click should feel immediate
-      // rather than wait for a round trip through the socket.
       setThreats((prev) =>
         prev.map((t) => (t.id === threatId ? { ...t, status: result.status } : t)),
       );
@@ -228,136 +218,202 @@ export default function App() {
 
   const mintToken = async () => {
     try {
-      return await api.enrollToken();
+      const res = await api.enrollToken();
+      return res;
     } catch (err) {
       fail(err);
       return null;
     }
   };
 
-  // ── derived ────────────────────────────────────────────────────────────────
-  const visibleThreats = React.useMemo(() => {
-    const floor = SEVERITIES.indexOf(severityFilter);
-    return threats.filter((t) => {
-      if (statusFilter !== "all" && t.status !== statusFilter) return false;
-      if (floor >= 0 && SEVERITIES.indexOf(t.severity) < floor) return false;
-      return true;
-    });
-  }, [threats, statusFilter, severityFilter]);
+  const handleQuickMint = async () => {
+    const t = await mintToken();
+    if (t) setQuickToken(t);
+  };
 
   const kem = pqc?.kem?.algorithm || health?.pqc?.kem;
+  const openThreatsCount = threats.filter((t) => t.status === "open").length;
+  const onlineAgentsCount = agents.filter((a) => a.online).length;
 
   return (
-    <div className="app">
-      <header className="header">
-        <div className="brand">
-          <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true">
-            <path
-              d="M12 2 4 5.2v6.4c0 4.7 3.2 9 8 10.4 4.8-1.4 8-5.7 8-10.4V5.2Z"
-              fill="none"
-              stroke="var(--series-1)"
-              strokeWidth="1.8"
-            />
-            <path d="M8.4 12.1l2.6 2.6 4.6-5.2" fill="none" stroke="var(--series-1)" strokeWidth="1.8" />
-          </svg>
-          <div>
-            <h1>VIGIL AI</h1>
-            <p>Insider threat detection · SOC console</p>
-          </div>
-        </div>
+    <>
+      {/* Background Grayscale Ambient Gradients */}
+      <div className="bg-gradients" aria-hidden="true" />
+      <div className="bg-grid-overlay" aria-hidden="true" />
 
-        <span className="badge" title={`WebSocket feed: ${conn}`}>
-          <i className={`dot ${conn === "live" ? "live" : conn === "offline" ? "offline" : "connecting"}`} />
-          {STATUS_TEXT[conn] || conn}
-        </span>
-
-        {kem && (
-          <span className="badge" title="Every endpoint batch is encrypted and signed with these">
-            PQC <span className="mono">{kem}</span>
-          </span>
-        )}
-
-        {model && (
-          <span className="badge" title={`Trained on ${model.meta?.n_train_windows ?? "?"} windows`}>
-            Model <span className="mono">{model.type}</span>
-          </span>
-        )}
-
-        <button
-          className="icon-btn"
-          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-          title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-        >
-          {theme === "dark" ? "Light" : "Dark"} mode
-        </button>
-        <button className="icon-btn" onClick={loadAll}>
-          Refresh
-        </button>
-      </header>
-
-      {error && (
-        <div className="banner error">
-          <div>
-            <strong>{error}</strong>
-            <div className="dim">
-              Check that the detection server is running and reachable from this browser.
-            </div>
-          </div>
-          <button onClick={() => setError(null)} aria-label="Dismiss">
-            ×
-          </button>
-        </div>
-      )}
-
-      {learned && <LearnedBanner result={learned} onClose={() => setLearned(null)} />}
-
-      <KpiRow summary={summary} agents={agents} rl={rl} />
-
-      <div className="stack">
-        <div className="grid main">
-          <ThreatTable
-            threats={visibleThreats}
-            selectedId={selectedId}
-            onSelect={(id) => setSelectedId(id === selectedId ? null : id)}
-            onVerdict={submitVerdict}
-            pending={pending}
-            statusFilter={statusFilter}
-            onStatusFilter={setStatusFilter}
-            severityFilter={severityFilter}
-            onSeverityFilter={setSeverityFilter}
-          />
-          <ThreatDetail threat={detail} loading={detailLoading} />
-        </div>
-
-        <div className="grid cols-2">
-          <TimelineChart timeline={timeline} />
-          <ScoreChart scores={scores.scores} threshold={scores.threshold} />
-        </div>
-
-        <QTablePanel
-          table={qtable}
-          stats={rl}
-          highlightState={detail?.state}
-          onReset={resetPolicy}
+      <div className="app-shell">
+        {/* Left Collapsible Monochrome Sidebar */}
+        <Sidebar
+          currentRoute={currentRoute}
+          onNavigate={setCurrentRoute}
+          collapsed={sidebarCollapsed}
+          onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+          conn={conn}
+          kem={kem}
+          openThreatsCount={openThreatsCount}
+          onlineEndpointsCount={onlineAgentsCount}
         />
 
-        <div className="grid main">
-          <EventFeed events={events} />
-          <AgentPanel agents={agents} onEnrollToken={mintToken} />
-        </div>
+        {/* Main Viewport */}
+        <div className="main-viewport">
+          <Header
+            currentRoute={currentRoute}
+            conn={conn}
+            onRefresh={loadAll}
+            onMintToken={handleQuickMint}
+            refreshing={refreshing}
+          />
 
-        <PqcPanel pqc={pqc} />
+          {/* Banners */}
+          {error && (
+            <div style={{ padding: "16px 28px 0" }}>
+              <div className="banner error">
+                <div>
+                  <strong>{error}</strong>
+                  <div className="dim" style={{ fontSize: "12px", marginTop: "2px" }}>
+                    Ensure the detection server is running on the expected host and port.
+                  </div>
+                </div>
+                <button className="banner-close" onClick={() => setError(null)}>×</button>
+              </div>
+            </div>
+          )}
+
+          {learned && (
+            <div style={{ padding: "16px 28px 0" }}>
+              <LearnedBanner result={learned} onClose={() => setLearned(null)} />
+            </div>
+          )}
+
+          {/* Dynamic View Routing */}
+          {currentRoute === "dashboard" && (
+            <DashboardView
+              summary={summary}
+              agents={agents}
+              threats={threats}
+              timeline={timeline}
+              scores={scores}
+              events={events}
+              rl={rl}
+              onSelectThreat={setSelectedId}
+              onVerdict={submitVerdict}
+              pendingVerdict={pending}
+              onNavigate={setCurrentRoute}
+            />
+          )}
+
+          {currentRoute === "threats" && (
+            <ThreatsView
+              threats={threats}
+              selectedId={selectedId}
+              onSelectThreat={setSelectedId}
+              detail={detail}
+              detailLoading={detailLoading}
+              onVerdict={submitVerdict}
+              pendingVerdict={pending}
+            />
+          )}
+
+          {currentRoute === "endpoints" && (
+            <EndpointsView
+              agents={agents}
+              onEnrollToken={mintToken}
+            />
+          )}
+
+          {currentRoute === "analytics" && (
+            <AnalyticsView
+              timeline={timeline}
+              scores={scores}
+              qtable={qtable}
+              rl={rl}
+              threats={threats}
+              events={events}
+              onResetPolicy={resetPolicy}
+            />
+          )}
+
+          {currentRoute === "agents" && (
+            <AgentsView
+              agents={agents}
+              onEnrollToken={mintToken}
+            />
+          )}
+
+          {currentRoute === "policy" && (
+            <PolicyCenterView
+              onPolicyUpdated={() => loadAll()}
+            />
+          )}
+
+          {currentRoute === "security" && (
+            <SecurityView pqc={pqc} />
+          )}
+
+          {currentRoute === "activity" && (
+            <ActivityView events={events} />
+          )}
+
+          {currentRoute === "settings" && (
+            <SettingsView
+              model={model}
+              health={health}
+              rl={rl}
+              onResetPolicy={resetPolicy}
+            />
+          )}
+        </div>
       </div>
 
-      <p className="footnote">
-        Containment is <strong>simulated</strong>: a BLOCK directive notifies the user and writes a
-        local audit record on the endpoint. It never severs the network or kills a process.
-      </p>
-    </div>
+      {/* Global Quick Mint Modal */}
+      <Modal
+        isOpen={Boolean(quickToken)}
+        onClose={() => setQuickToken(null)}
+        title="Agent Enrollment Token"
+      >
+        <p className="dim" style={{ fontSize: "12.5px" }}>
+          Single-use post-quantum token for bootstrapping an endpoint agent.
+        </p>
+
+        <div
+          style={{
+            marginTop: "10px",
+            padding: "10px 12px",
+            background: "rgba(0,0,0,0.6)",
+            border: "1px solid var(--border-medium)",
+            borderRadius: "var(--radius-sm)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "10px",
+          }}
+        >
+          <span className="mono" style={{ fontSize: "12px", color: "#ffffff", wordBreak: "break-all" }}>
+            {quickToken?.token}
+          </span>
+          <button
+            className="btn btn-icon"
+            onClick={() => {
+              if (quickToken?.token) {
+                navigator.clipboard.writeText(quickToken.token);
+                setCopiedToken(true);
+                setTimeout(() => setCopiedToken(false), 2000);
+              }
+            }}
+            title="Copy"
+          >
+            {copiedToken ? <Check size={14} color="#ffffff" /> : <Copy size={14} />}
+          </button>
+        </div>
+
+        <p className="dim" style={{ fontSize: "11.5px", marginTop: "10px" }}>
+          Save in <span className="mono">agent_config.yaml</span> as <span className="mono">enroll_token</span>.
+        </p>
+      </Modal>
+    </>
   );
 }
 
-/** What one click actually taught the policy — the loop, made legible. */
 function LearnedBanner({ result, onClose }) {
   const l = result.learning || {};
   const parts = [`${l.action} ${fmt(l.reward)}`];
@@ -366,20 +422,20 @@ function LearnedBanner({ result, onClose }) {
   return (
     <div className="banner learned">
       <div>
-        <strong>
-          Threat #{result.threat_id} {result.status}
+        <strong style={{ color: "#ffffff" }}>
+          Threat #{result.threat_id} {result.status.toUpperCase()}
         </strong>{" "}
-        — policy for <span className="mono">{l.state}</span> updated: {parts.join(", ")}.
+        — policy updated for state <span className="mono">{l.state}</span>: {parts.join(", ")}.
         {result.policy_changed ? (
           <>
             {" "}
-            It now chooses <strong>{l.policy_after}</strong> here, was {l.policy_before}.
+            Optimal response transitioned to <strong style={{ color: "#ffffff" }}>{l.policy_after}</strong> (was {l.policy_before}).
           </>
         ) : (
-          <> It still chooses {l.policy_after} here.</>
+          <> Preserves {l.policy_after} as dominant response.</>
         )}
       </div>
-      <button onClick={onClose} aria-label="Dismiss">
+      <button className="banner-close" onClick={onClose} aria-label="Dismiss">
         ×
       </button>
     </div>

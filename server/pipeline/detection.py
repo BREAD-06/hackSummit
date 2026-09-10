@@ -63,9 +63,11 @@ class DetectionStage:
     def threshold(self) -> float:
         return self.model.threshold
 
-    def score(self, window: Window) -> Detection:
+    def score(self, window: Window, policy: Any = None) -> Detection:
         features = window.feature_dict()
         raw, is_anomaly = self.model.score_feature_dicts([features])[0]
+        if policy and hasattr(policy, "adjust_anomaly_decision"):
+            is_anomaly = policy.adjust_anomaly_decision(raw, self.model.threshold, is_anomaly)
         return Detection(
             window_key=window.key,
             agent_id=window.agent_id,
@@ -80,21 +82,27 @@ class DetectionStage:
             risk=normalised_score(raw, self.model.threshold),
         )
 
-    def score_many(self, windows: list[Window]) -> list[Detection]:
+    def score_many(self, windows: list[Window], policy: Any = None) -> list[Detection]:
         """Batch-score windows in a single model call (one matrix, not N)."""
         if not windows:
             return []
         feature_dicts = [w.feature_dict() for w in windows]
         results = self.model.score_feature_dicts(feature_dicts)
-        return [
-            Detection(
-                window_key=w.key, agent_id=w.agent_id, user=w.user, host=w.host,
-                window_start=w.window_start.isoformat(), hour=w.hour,
-                day_of_week=w.day_of_week, features=f, anomaly_score=raw,
-                is_anomaly=flag, risk=normalised_score(raw, self.model.threshold),
+        out = []
+        for w, f, (raw, flag) in zip(windows, feature_dicts, results):
+            is_anom = flag
+            if policy and hasattr(policy, "adjust_anomaly_decision"):
+                is_anom = policy.adjust_anomaly_decision(raw, self.model.threshold, is_anom)
+            out.append(
+                Detection(
+                    window_key=w.key, agent_id=w.agent_id, user=w.user, host=w.host,
+                    window_start=w.window_start.isoformat(), hour=w.hour,
+                    day_of_week=w.day_of_week, features=f, anomaly_score=raw,
+                    is_anomaly=is_anom, risk=normalised_score(raw, self.model.threshold),
+                )
             )
-            for w, f, (raw, flag) in zip(windows, feature_dicts, results)
-        ]
+        return out
+
 
     def info(self) -> dict:
         return self.model.info()

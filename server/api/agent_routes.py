@@ -219,4 +219,6 @@ async def events(req: SealedBatchRequest, request: Request):
         "seq": seq,
         **result.summary(),
         "directives": json_safe(result.directives),
+        "policy": result.policy,
     }
+

@@ -83,6 +83,7 @@ class EndpointAgent:
             if cfg.collect_logon else None
 
         self.collectors = [c for c in (self.files, self.usb, self.logon) if c is not None]
+        self.active_policy: dict = {}
 
     def _context(self, is_removable=None) -> CollectorContext:
         return CollectorContext(
@@ -136,7 +137,10 @@ class EndpointAgent:
         self.flushes += 1
         self._log_result(events, body)
         self._handle_directives(body.get("directives") or [])
+        if "policy" in body:
+            self._apply_policy(body["policy"])
         return body
+
 
     def _log_result(self, events: list, body: dict) -> None:
         severity = body.get("highest_severity")
@@ -246,7 +250,31 @@ class EndpointAgent:
         print(" " + message, file=sys.stderr)
         print("=" * 72 + "\n", file=sys.stderr)
 
+    def _apply_policy(self, policy: dict | None) -> None:
+        """Apply dynamic policy sync from the detection server."""
+        if not policy or not isinstance(policy, dict):
+            return
+        self.active_policy = policy
+        collect_usb = policy.get("collect_usb", True)
+        usb_policy = policy.get("usb_policy", "alert")
+
+        # If policy disables USB collection, stop the USB collector; if enabled, start it
+        if self.usb and self.usb.available:
+            if (not collect_usb or usb_policy == "disabled") and self.usb.running:
+                try:
+                    self.usb.stop()
+                    log.info("policy: USB monitoring disabled by company policy — paused USB collector")
+                except Exception as exc:
+                    log.warning("error pausing USB collector: %s", exc)
+            elif collect_usb and usb_policy != "disabled" and not self.usb.running and self.cfg.collect_usb:
+                try:
+                    self.usb.start()
+                    log.info("policy: USB monitoring active — resumed USB collector")
+                except Exception as exc:
+                    log.warning("error resuming USB collector: %s", exc)
+
     # ── introspection ────────────────────────────────────────────────────────
+
     def stats(self) -> dict:
         return {
             "agent_id": self.cfg.agent_id,

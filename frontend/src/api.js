@@ -70,7 +70,15 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ threat_id: threatId, action }),
     }),
+  policy: () => request("/policy"),
+  updatePolicy: (data) =>
+    request("/policy", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  resetPolicyConfig: () => request("/policy/reset", { method: "POST" }),
 };
+
 
 export { ApiError };
 
